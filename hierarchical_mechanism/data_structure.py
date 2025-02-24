@@ -2,6 +2,8 @@ import math
 from bisect import bisect
 from typing import Union
 
+import numpy as np
+
 
 class Tree:
     """
@@ -67,14 +69,25 @@ class Tree:
         """
         return get_bary_decomposition(self.intervals, value)
 
-    def get_quantile(self, quantile: float):
-        value = math.ceil(quantile * self.N)
-        indices = self.get_bary_decomposition_index(value)
-        result = 0
-        for i, j in indices:
-            # attributes are normalized so we are summing frequencies
-            result += self.attributes[i][j]
-        return result
+    # def get_quantile(self, quantile: float):
+    #     value = math.ceil(quantile * self.N)
+    #     indices = self.get_bary_decomposition_index(value)
+    #     result = 0
+    #     for i, j in indices:
+    #         # attributes are normalized so we are summing frequencies
+    #         result += self.attributes[i][j]
+    #     return result
+
+    def compute_cdf(self):
+        cdf = np.zeros(self.B)
+        for i in range(self.B):
+            indices = self.get_bary_decomposition_index(i)
+            result = 0
+            for i, j in indices:
+                # attributes are normalized so we are summing frequencies
+                result += self.attributes[i][j]
+            cdf[i] = result
+        return cdf
 
 
 def get_bary_partition(B: Union[float, int], b: int) -> list[list[list[int]]]:

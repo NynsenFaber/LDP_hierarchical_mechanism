@@ -42,9 +42,13 @@ def get_frequency(server, count, item) -> float:
 # test
 B = 8
 b = 2
-eps = 1
+eps = 10
 protocol = 'unary_encoding'
 tree = Private_Tree(B, b)
-data = np.random.randint(0, B, 1000)
+data = np.random.randint(0, B, 100000)
 tree.update_tree(data, eps, protocol)
-print(tree.get_quantile(0.5))
+cdf = tree.compute_cdf()
+print(f"CDF: {cdf}")
+# find closest index of the CDF to 0.5
+closest_item = min(range(len(cdf)), key=lambda i: abs(cdf[i] - 0.5))
+print(f"Closest item to 0.5: {closest_item}")
