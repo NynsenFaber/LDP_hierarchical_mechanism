@@ -38,14 +38,26 @@ class Private_Tree(Tree):
                 self.attributes[i][j] = get_frequency(servers[i - 1], counts[i - 1], j)
         self.N = sum(counts)
 
-    # def get_quantile(self, quantile: float):
-    #     value = math.ceil(quantile * self.N)
-    #     indices = self.get_bary_decomposition_index(value)
-    #     result = 0
-    #     for i, j in indices:
-    #         # attributes are normalized so we are summing frequencies
-    #         result += self.attributes[i][j]
-    #     return result
+    def get_range_query(self, left: int, right: int, normalized: bool = False):
+        assert 0 <= left <= right <= self.B, "Left and right must be between 0 and B"
+
+        # compute right quantile
+        indices = self.get_bary_decomposition_index(right)
+        result_right = 0
+        for i, j in indices:
+            # attributes are normalized so we are summing frequencies
+            result_right += self.attributes[i][j]
+
+        # compute left quantile
+        indices = self.get_bary_decomposition_index(left)
+        result_left = 0
+        for i, j in indices:
+            # attributes are normalized so we are summing frequencies
+            result_left += self.attributes[i][j]
+        if normalized:
+            return result_right - result_left
+        else:
+            return (result_right - result_left) * self.N
 
     def compute_cdf(self):
         """
@@ -87,7 +99,7 @@ def get_frequency(server, count, item) -> float:
     return server.estimate(item, suppress_warnings=True) / count
 
 
-# test
+# test Quantile
 B = 4000
 b = 4
 eps = 1
@@ -103,3 +115,11 @@ tree.compute_cdf()
 private_quantile = tree.get_quantile(q)
 print(f"Closest item to {q}: {private_quantile}")
 print(f"True quantile: {true_quantile}")
+
+# test range query
+left = 1000
+right = 2000
+true_range_query = np.sum(data >= left) - np.sum(data >= right)
+private_range_query = tree.get_range_query(left, right, normalized=False)
+print(f"True range query: {true_range_query}")
+print(f"Private range query: {private_range_query}")
