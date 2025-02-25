@@ -35,8 +35,8 @@ def ldp_protocol(data: list[Union[int, float]],
     depth = tree.depth
     # this counter is used to keep track of the number of users that updated the tree at each level
     counts = np.zeros(depth, dtype=int)
-    # create the clients and servers for each level of the tree
-    for level in range(1, depth + 1):
+    # create the clients and servers for each level of the tree, not for the root
+    for level in range(1, depth):
         # ------------- Local Hashing
         if protocol == 'local_hashing':
             clients.append(LHClient(epsilon=eps, d=len(intervals[level]), use_olh=True))
@@ -69,10 +69,10 @@ def ldp_protocol(data: list[Union[int, float]],
         # sample a user
         user_value = data[i]
         # select a random level of the tree
-        level = np.random.randint(1, depth + 1)
+        level = np.random.randint(1, depth)
         # select the index of the subinterval where the user belongs
         interval_index = tree.find_interval_index(user_value, level)
-        # get the client and server
+        # get the client and server (have index with an offset of 1)
         client = clients[level - 1]
         # privatize the data and send to the server
         priv_data = client.privatise(interval_index)
