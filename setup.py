@@ -16,7 +16,7 @@ setup(
     url='https://github.com/NynsenFaber/LDP_hierarchical_mechanism',
     packages=find_packages(),
     install_requires=[
-        'pure-ldp==1.2.0',
+        'pure-ldp>=1.2.0',
         'scikit-learn==1.6.1',
         'statsmodels==0.14.4'
     ],

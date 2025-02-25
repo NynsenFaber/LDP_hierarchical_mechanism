@@ -5,7 +5,11 @@ it is an implementation of the Hierarchical Mechanism in
 
 The LDP frequency protocol are implemented from the library 
 https://github.com/Samuel-Maddock/pure-LDP
+
+The library is intended for testing the LDP hierarchical mechanism locally.
 ## Install
+
+    pip install hierarchical-mechanism-LDP
 
 ## Usage
 It is based on the class `Private_Tree` that implements the hierarchical mechanism for local differential privacy. The class has the following methods:

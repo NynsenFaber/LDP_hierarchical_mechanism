@@ -3,7 +3,8 @@ from pure_ldp.frequency_oracles.direct_encoding import DEClient, DEServer
 from pure_ldp.frequency_oracles.hadamard_response import HadamardResponseClient, HadamardResponseServer
 from pure_ldp.frequency_oracles.unary_encoding import UEClient, UEServer
 
-from data_structure import Tree
+from .data_structure import Tree
+
 import numpy as np
 from typing import Union
 
