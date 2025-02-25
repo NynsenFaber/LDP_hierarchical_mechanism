@@ -3,6 +3,10 @@ it is an implementation of the Hierarchical Mechanism in
 
 > Kulkarni, Tejas, Graham Cormode, and Divesh Srivastava. "Answering range queries under local differential privacy." arXiv preprint arXiv:1812.10942 (2018).
 
+The LDP frequency protocol are implemented from the library 
+https://github.com/Samuel-Maddock/pure-LDP
+## Install
+
 ## Usage
 It is based on the class `Private_Tree` that implements the hierarchical mechanism for local differential privacy. The class has the following methods:
 ### Initialization
