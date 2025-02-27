@@ -3,7 +3,7 @@ from pure_ldp.frequency_oracles.direct_encoding import DEClient, DEServer
 from pure_ldp.frequency_oracles.hadamard_response import HadamardResponseClient, HadamardResponseServer
 from pure_ldp.frequency_oracles.unary_encoding import UEClient, UEServer
 
-from .data_structure import Tree
+from .data_structure import TreeBary
 
 import numpy as np
 from typing import Union
@@ -11,7 +11,7 @@ from typing import Union
 
 def ldp_protocol(data: list[Union[int, float]],
                  eps: float,
-                 tree: Tree,  # initial empty tree
+                 tree: TreeBary,  # initial empty tree
                  protocol: str) -> list[LHServer]:
     """
     LDP protocol functions for the b-ary mechanism. It returns a list of servers with the privatized data for the

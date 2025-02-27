@@ -1,1 +1,1 @@
-from .mechanism import Private_Tree
+from .mechanism import Private_TreeBary

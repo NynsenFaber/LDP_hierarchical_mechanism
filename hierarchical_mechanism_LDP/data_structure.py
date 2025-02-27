@@ -5,7 +5,7 @@ from typing import Union
 import numpy as np
 
 
-class Tree:
+class TreeBary:
     """
     Class to represent a tree structure for the hierarchical mechanism. It works for a bounded data domain of the
     form [0, B].
@@ -18,10 +18,11 @@ class Tree:
         :param B: bound of the data, of the form [0, B]
         :param b: branching factor of the tree
         """
-        self.B = B
         self.b = b
         # e.g. for B=8, b=2, depth=3, while for B=9, b=2, depth=4 as 2^4=16>=9
         self.depth = math.ceil(math.log(B, b)) + 1
+        # max value of the data domain
+        self.B = b ** (self.depth - 1)
         # get the b-ary partition of the data, shape: tree level -> interval index -> interval
         self.intervals: list[list[list[int]]] = get_bary_partition(self.B, self.b)
 
@@ -34,7 +35,7 @@ class Tree:
 
         :return: the index of the subinterval where y belongs
         """
-        assert 0 <= level <= self.depth, "The level must be between 0 and the depth of the tree"
+        assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
         return find_interval_index(self.intervals[level], value)
 
     def get_bary_decomposition(self, value: Union[int, float]) -> list[list[int]]:
@@ -66,6 +67,27 @@ class Tree:
         :return: the bary decomposition of the value
         """
         return get_bary_decomposition(self.intervals, value)
+
+    def get_level_indices(self, level: int) -> list[int]:
+        """
+        Get the indices of the subintervals at a given level
+
+        :param level: the level of the tree
+
+        :return: the indices of the subintervals at the given level
+        """
+        assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
+        return list(range(len(self.intervals[level])))
+
+    def get_height(self, level) -> int:
+        """
+        Given a level (0 for the root, self.depth for the leaves), return the height of the tree (1 for the leaves,
+        self.depth for the root)
+
+        :return: the height of the tree
+        """
+        assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
+        return self.depth - level
 
 
 def get_bary_partition(B: Union[float, int], b: int) -> list[list[list[int]]]:
@@ -348,8 +370,7 @@ def test_get_bary_decomposition_index():
 def test_tree():
     B = 8
     b = 2
-    tree = Tree(B, b)
-
+    tree = TreeBary(B, b)
     assert tree.find_interval_index(15, 1) == 1
     assert tree.find_interval_index(10, 1) == 1
     assert tree.find_interval_index(33, 1) == 1
@@ -360,7 +381,7 @@ def test_tree():
 
     B = 21
     b = 3
-    tree = Tree(B, b)
+    tree = TreeBary(B, b)
     assert tree.get_bary_decomposition(21) == [[0, 9], [9, 18], [18, 21], [21, 22]]
     assert tree.get_bary_decomposition(29) == [[0, 9], [9, 18], [18, 27]]
     assert tree.get_bary_decomposition(27) == [[0, 9], [9, 18], [18, 27]]
