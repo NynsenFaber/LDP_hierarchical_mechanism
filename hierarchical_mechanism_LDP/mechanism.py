@@ -93,6 +93,30 @@ class Private_TreeBary(TreeBary):
     ### QUERY FUNCTIONS ###
     #######################
 
+    def get_quantile(self, quantile: float):
+        """
+        Get the quantile of the data
+
+        :param quantile: the quantile to get
+
+        :return: the quantile
+        """
+        assert 0 <= quantile <= 1, "Quantile must be between 0 and 1"
+
+        if self.cdf is None:
+            self.compute_cdf()
+        # retrive only elements with positive values
+        index = np.where(self.cdf - quantile >= 0)[0]
+        # find the minimum index that is closest to the quantile
+        return min(index, key=lambda i: self.cdf[i] - quantile)
+
+    def get_bins(self, quantiles: list[float], alpha: float) -> list[tuple[int, int]]:
+        return None
+
+    ######################################################
+    ### Function useless if the tree is post processed ###
+    ######################################################
+
     def get_range_query_bary(self, left: int, right: int, normalized: bool = False) -> float:
         """
         Compute range query using bary indexing.
@@ -133,23 +157,6 @@ class Private_TreeBary(TreeBary):
             indices = self.get_bary_decomposition_index(i)
             cdf[i] = sum(self.attributes[j][k] for j, k in indices)
         self.cdf = cdf
-
-    def get_quantile(self, quantile: float):
-        """
-        Get the quantile of the data
-
-        :param quantile: the quantile to get
-
-        :return: the quantile
-        """
-        assert 0 <= quantile <= 1, "Quantile must be between 0 and 1"
-
-        if self.cdf is None:
-            self.compute_cdf()
-        # retrive only elements with positive values
-        index = np.where(self.cdf - quantile >= 0)[0]
-        # find the minimum index that is closest to the quantile
-        return min(index, key=lambda i: self.cdf[i] - quantile)
 
 
 def get_frequency(server, count, item) -> float:
