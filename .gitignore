@@ -2,3 +2,4 @@
 /LDP_hierarchical_mechanism.egg-info/
 /dist/
 /hierarchical_mechanism_LDP/test.py
+.gitignore
