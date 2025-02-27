@@ -110,6 +110,26 @@ class Private_TreeBary(TreeBary):
         # find the minimum index that is closest to the quantile
         return min(index, key=lambda i: self.cdf[i] - quantile)
 
+    def get_range_query(self, left: int, right: int, normalized: bool = False) -> float:
+        """
+        Compute range query
+        :param left: left bound of the range
+        :param right: right bound of the range
+        :param normalized: if True, the result is normalized by the total number of users that updated the tree
+
+        :return: range query
+        """
+
+        assert 0 <= left <= right <= self.B, "Left and right must be between 0 and B"
+        # compute right quantile
+        result_right = self.cdf[right]
+        # compute left quantile
+        result_left = self.cdf[left]
+        if normalized:
+            return result_right - result_left
+        else:
+            return (result_right - result_left) * self.N
+
     def get_bins(self, quantiles: list[float], alpha: float) -> list[tuple[int, int]]:
         """
         Return a list of bins that contains quantiles q-alpha and q+alpha for each quantile q in quantiles.
