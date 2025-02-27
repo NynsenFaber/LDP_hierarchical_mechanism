@@ -18,7 +18,7 @@ def test_Private_TreeBary():
     tree = Private_TreeBary(B, b)
     data = np.random.randint(0, B, 1000)
     # get private quantile
-    tree.update_tree(data, eps, protocol)
+    tree.update_tree(data, eps, protocol, post_process=False)
     tree.post_process()
     # checks
     for level in range(0, tree.depth - 1):
@@ -33,7 +33,7 @@ def test_Private_TreeBary():
     tree = Private_TreeBary(B, b)
     data = np.random.randint(0, B, 1000)
     # get private quantile
-    tree.update_tree(data, eps, protocol)
+    tree.update_tree(data, eps, protocol, post_process=False)
     tree.post_process()
     # checks
     for level in range(0, tree.depth - 1):
