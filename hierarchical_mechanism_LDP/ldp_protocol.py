@@ -11,7 +11,7 @@ from typing import Union
 
 def ldp_protocol(data: list[Union[int, float]],
                  eps: float,
-                 tree: Tree,
+                 tree: Tree,  # initial empty tree
                  protocol: str) -> list[LHServer]:
     """
     LDP protocol functions for the b-ary mechanism. It returns a list of servers with the privatized data for the
