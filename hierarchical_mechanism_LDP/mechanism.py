@@ -1,5 +1,6 @@
 from .ldp_protocol import ldp_protocol
 from .data_structure import TreeBary
+from .computeamplification import numericalanalysis, closedformanalysis
 from typing import Union
 import numpy as np
 
@@ -18,6 +19,7 @@ class Private_TreeBary(TreeBary):
         self.attributes: list[list[float]] = [[0.] * len(interval) for interval in self.intervals]
         self.N = None  # total number of users that updated the tree
         self.cdf = None
+        self.eps = None
 
     def __getitem__(self, item: tuple[int, int]) -> float:
         """
@@ -46,6 +48,8 @@ class Private_TreeBary(TreeBary):
                                        eps=eps,
                                        tree=self,
                                        protocol=protocol)
+
+        self.eps = eps
 
         # update the attributes of the Private tree, do not update the root
         for i, level_attributes in enumerate(self.attributes):
@@ -88,6 +92,40 @@ class Private_TreeBary(TreeBary):
 
         # The order of computation of range query is not important thanks to post processing
         self.cdf = np.cumsum(self.attributes[-1])
+
+    def get_privacy(self, **kwargs) -> float:
+        """
+        Return the privacy (epsilon) of the mechanism. If shuffle is True, the privacy is computed using privacy amplification
+        by shuffling given a delta parameter and the initial privacy budget used to update the tree.
+        If numerical is True, the privacy is computed using numerical analysis, otherwise it is computed using closed form analysis.
+
+        :param kwargs:
+            - shuffle: bool, if True the privacy is computed using privacy amplification by shuffling
+            - numerical: bool, if True the privacy is computed using numerical analysis
+            - delta: float, failure probability
+            - num_iterations: int, number of iterations for numerical analysis
+            - step: int, step for numerical analysis
+            - upperbound: bool, if True the upperbound is computed, otherwise the lowerbound is computed
+
+        :return: upper or lower bound of the privacy
+        """
+        shuffle = kwargs.get('shuffle', False)
+        numerical = kwargs.get('numerical', False)
+        delta = kwargs.get('delta', None)
+
+        if not shuffle:
+            return self.eps
+
+        if delta is None:
+            raise ValueError("Delta must be provided if shuffle is True")
+
+        if numerical:
+            num_iterations = kwargs.get('num_iterations', 10)
+            step = kwargs.get('step', 100)
+            upperbound = kwargs.get('upperbound', True)
+            return numericalanalysis(self.N, self.eps, delta, num_iterations, step, upperbound)
+        else:
+            return closedformanalysis(self.N, self.eps, delta)
 
     #######################
     ### QUERY FUNCTIONS ###

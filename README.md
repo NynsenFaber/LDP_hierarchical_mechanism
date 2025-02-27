@@ -89,3 +89,28 @@ Result
 ```
 [(np.int64(664), np.int64(1441)), (np.int64(1591), np.int64(2562)), (np.int64(2669), np.int64(3365))]
 ```
+
+### Shuffling Amplification
+We implemented the algorithm provided in: 
+> Feldman, Vitaly, Audra McMillan, and Kunal Talwar.
+> "Hiding among the clones: A simple and nearly optimal analysis of privacy amplification by shuffling." 2021 IEEE 
+> 62nd Annual Symposium on Foundations of Computer Science (FOCS). IEEE, 2022.
+
+For analyzing the privacy amplification by shuffling of the mechanism. The
+implementation is taken from the repository
+https://github.com/apple/ml-shuffling-amplification
+
+```python
+# Test amplification by shuffling
+delta = 1e-6
+shuffle_numerical = tree.get_privacy(shuffle=True, delta=delta, numerical=True)
+shuffle_theoretical = tree.get_privacy(shuffle=True, delta=delta, numerical=False)
+print(f"For an initial {tree.eps}-DP mechanism, after shuffling {tree.N} users and considering delta = {delta} we obtain"
+      f"a numerical upper bound of eps = : {shuffle_numerical} and a theoretical upper bound of eps = {shuffle_theoretical}")
+```
+Result
+```
+For an initial 1-DP mechanism, after shuffling 100000 users and considering delta = 1e-06 
+we obtain a numerical upper bound of eps = : 0.015513881255146383 
+and a theoretical upper bound of eps = 0.07529011566478624
+```
