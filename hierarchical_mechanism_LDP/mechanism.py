@@ -111,7 +111,29 @@ class Private_TreeBary(TreeBary):
         return min(index, key=lambda i: self.cdf[i] - quantile)
 
     def get_bins(self, quantiles: list[float], alpha: float) -> list[tuple[int, int]]:
-        return None
+        """
+        Return a list of bins that contains quantiles q-alpha and q+alpha for each quantile q in quantiles.
+
+        :param quantiles: list of quantiles
+        :param alpha: error parameter
+
+        :return: list of bins as tuples
+        """
+        assert 0 <= alpha <= 0.5, "Alpha must be between 0 and 0.5"
+        assert all(0 < q < 1 for q in quantiles), "Quantiles must be between 0 and 1"
+
+        # sort the quantiles
+        quantiles = sorted(quantiles)
+        bins = []
+        for q in quantiles:
+            # get the left and right quantile
+            left = self.get_quantile(max(q - alpha, 0))
+            right = self.get_quantile(min(q + alpha, 1))
+            # sort left and right (they might be inverted)
+            left, right = min(left, right), max(left, right)
+            # append the bin
+            bins.append((left, right))
+        return bins
 
     ######################################################
     ### Function useless if the tree is post processed ###
