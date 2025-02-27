@@ -87,7 +87,7 @@ class Private_TreeBary(TreeBary):
             ]
 
         # The order of computation of range query is not important thanks to post processing
-        self.cdf = self.attributes[-1]
+        self.cdf = np.cumsum(self.attributes[-1])
 
     #######################
     ### QUERY FUNCTIONS ###

@@ -31,16 +31,22 @@ tree = Private_TreeBary(B, b)
 
 data = np.random.randint(0, B, 100000)  # generate random data
 
-tree.update_tree(data, eps, protocol)  # update the tree with the data
+tree.update_tree(data, eps, protocol, post_process=True)  # update the tree with the data
 ```
+The `post_process` boolean parameter is used to apply the post-processing step of the hierarchical mechanism.
+The post-processing step is used to improve the accuracy of the mechanism. The post-processing step is applied by default.
 
+Post-processing applies the Hierarchial Mechanism proposed by Hay et al. in 
+> M. Hay, V. Rastogi, G. Miklau, and D. Suciu. Boosting the
+accuracy of differentially private histograms through
+consistency. PVLDB, 3(1):1021–1032, 2010.
 ### Quantile estimation
 You can estimate the quantile of the data with `Private_Tree.get_quantile(q)`, where `q` is the quantile to estimate.
 ```python
 # get quantile of the data
 true_quantile = np.quantile(data, q)
 private_quantile = tree.get_quantile(q)  # get the quantile
-print(f"Closest item to {q}: {private_quantile}")
+print(f"DP quantile: {private_quantile}")
 print(f"True quantile: {true_quantile}")
 
 ```
@@ -59,7 +65,7 @@ Additionally, you can return a normalized range query.
 left = 1000
 right = 2000
 true_range_query = np.sum(data >= left) - np.sum(data >= right)
-private_range_query = tree.get_range_query_bary(left, right, normalized=False)
+private_range_query = tree.get_range_query(left, right, normalized=False)
 print(f"True range query: {true_range_query}")
 print(f"Private range query: {private_range_query}")
 ```
@@ -67,4 +73,19 @@ Result
 ```
 True range query: 24980
 Private range query: 25514.970123615636
+```
+### Binning
+Given a list of quantiles and an error `alpha`, you can create bins of the form 
+`[q_i - alpha, q_i + alpha]` with `Private_Tree.get_bins(quantiles, alpha)`. The bins
+are returned as a list of tuples.
+```python
+# test binning
+quantiles = [0.25, 0.50, 0.75]
+alpha = 0.1
+bins = tree.get_bins(quantiles, alpha)
+print(bins)
+```
+Result
+```
+[(np.int64(664), np.int64(1441)), (np.int64(1591), np.int64(2562)), (np.int64(2669), np.int64(3365))]
 ```
