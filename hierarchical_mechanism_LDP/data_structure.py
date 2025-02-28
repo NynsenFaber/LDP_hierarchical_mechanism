@@ -11,7 +11,7 @@ class TreeBary:
     form [0, B].
     """
 
-    def __init__(self, B: int, b: int):
+    def __init__(self, B: int, b: int, set_intervals: bool = True):
         """
         Constructor
 
@@ -23,8 +23,11 @@ class TreeBary:
         self.depth = math.ceil(math.log(B, b)) + 1
         # max value of the data domain
         self.B = b ** (self.depth - 1)
-        # get the b-ary partition of the data, shape: tree level -> interval index -> interval
-        self.intervals: list[list[list[int]]] = get_bary_partition(self.B, self.b)
+        if set_intervals:
+            # get the b-ary partition of the data, shape: tree level -> interval index -> interval
+            self.intervals: list[list[list[int]]] = get_bary_partition(self.B, self.b)
+        else:
+            self.intervals = None
 
     def find_interval_index(self, value: int, level: int) -> int:
         """
@@ -36,7 +39,10 @@ class TreeBary:
         :return: the index of the subinterval where y belongs
         """
         assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
-        return find_interval_index(self.intervals[level], value)
+        if self.intervals is None:
+            return find_interval_index(level, self.b, self.depth, value)
+        else:
+            return find_interval_index_with_intervals(self.intervals[level], value)
 
     def get_bary_decomposition(self, value: Union[int, float]) -> list[list[int]]:
         """
@@ -77,17 +83,20 @@ class TreeBary:
         :return: the indices of the subintervals at the given level
         """
         assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
-        return list(range(len(self.intervals[level])))
+        return range(self.b ** level)
 
     def get_height(self, level) -> int:
         """
-        Given a level (0 for the root, self.depth for the leaves), return the height of the tree (1 for the leaves,
+        Given a level (0 for the root, self.depth-1 for the leaves), return the height of the tree (1 for the leaves,
         self.depth for the root)
 
         :return: the height of the tree
         """
         assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
         return self.depth - level
+
+    def update_bary_partition(self):
+        self.intervals = get_bary_partition(self.B, self.b)
 
 
 def get_bary_partition(B: Union[float, int], b: int) -> list[list[list[int]]]:
@@ -133,7 +142,7 @@ def get_bary_partition(B: Union[float, int], b: int) -> list[list[list[int]]]:
     return results
 
 
-def find_interval_index(intervals: list[list], value: int) -> int:
+def find_interval_index_with_intervals(intervals: list[list], value: int) -> int:
     """
     Find the index of the subinterval where y belongs
 
@@ -145,24 +154,24 @@ def find_interval_index(intervals: list[list], value: int) -> int:
     Example 1:
     intervals = [[0, 10], [10, 20], [20, 30]]
     value = 15
-    find_interval_index(intervals, value) -> 1 so intervals[1] = [10, 20]
+    find_interval_index_with_intervals(intervals, value) -> 1 so intervals[1] = [10, 20]
 
     Example 2:
     intervals = [[0, 10], [10, 20], [20, 30]]
     value = 10
-    find_interval_index(intervals, value) -> 1 so intervals[0] = [10, 15]
+    find_interval_index_with_intervals(intervals, value) -> 1 so intervals[0] = [10, 15]
     As the right bound is not included in the interval, the index is 1 instead of 0
 
     Example 3:
     intervals = [[0, 10], [10, 20], [20, 30]]
     value = 33
-    find_interval_index(intervals, value) -> 2 so intervals[2] = [20, 30]
+    find_interval_index_with_intervals(intervals, value) -> 2 so intervals[2] = [20, 30]
     The value is clipped
 
     Example 4:
     intervals = [[0, 10], [10, 20], [20, 30]]
     value = -5
-    find_interval_index(intervals, value) -> 0 so intervals[0] = [0, 10]
+    find_interval_index_with_intervals(intervals, value) -> 0 so intervals[0] = [0, 10]
     The value is clipped
     """
     # Extract the starting points of each interval
@@ -172,6 +181,50 @@ def find_interval_index(intervals: list[list], value: int) -> int:
     index = bisect(starts, value)
     # index - 1 is returned as the index are [j B^i, (j+1)B^i), so the right bound is not included
     return index - 1 if index > 0 else 0
+
+
+def find_interval_index(level: int, b: int, depth: int, value: int) -> int:
+    """
+    Space efficient version of find_interval_index_with_intervals
+
+    Find the index of the subinterval where y belongs
+
+    :param level: the level of the tree (0 for the root, depth-1 for the leaves)
+    :param b: the base of the representation
+    :param depth: the depth of the tree
+    :param value: the value to find the interval index for
+
+    :return: the index of the subinterval where y belongs
+
+    Example 1:
+    level = 1
+    b = 2
+    depth = 4
+    value = 7
+    find_interval_index(height, b, depth, value) -> 0 so intervals[0] = [0, 8]
+
+    Example 2:
+    level = 1
+    b = 10
+    depth = 4
+    value = 20
+    find_interval_index(height, b, depth, value) -> 2 so intervals[2] = [20, 30]
+    As the right bound is not included in the interval, the index is 1 instead of 0
+
+    Example 3:
+    level = 2
+    b = 10
+    depth = 2
+    value = 150
+    find_interval_index(height, b, depth, value) -> 1 so intervals[1] = [100, 150]
+    """
+    height = depth - level
+    if value <= 0:
+        return 0
+    if value >= b ** (depth - 1):
+        return int(b ** level - 1)
+
+    return int(np.floor(value / (b ** (height - 1))) + 1) - 1
 
 
 def get_bary_representation(value: int, b: int, length: int) -> list[int]:
@@ -332,19 +385,19 @@ def test_get_bary_partition():
 
 def test_find_interval_index():
     intervals = [[0, 10], [10, 20], [20, 30]]
-    assert find_interval_index(intervals, 15) == 1
-    assert find_interval_index(intervals, 10) == 1
-    assert find_interval_index(intervals, 33) == 2
-    assert find_interval_index(intervals, -5) == 0
+    assert find_interval_index_with_intervals(intervals, 15) == 1
+    assert find_interval_index_with_intervals(intervals, 10) == 1
+    assert find_interval_index_with_intervals(intervals, 33) == 2
+    assert find_interval_index_with_intervals(intervals, -5) == 0
 
     intervals = [[0, 25], [25, 50], [50, 75], [75, 100], [100, 125]]
-    assert find_interval_index(intervals, 15) == 0
-    assert find_interval_index(intervals, 25) == 1
-    assert find_interval_index(intervals, 33) == 1
-    assert find_interval_index(intervals, 100) == 4
-    assert find_interval_index(intervals, 125) == 4
-    assert find_interval_index(intervals, 126) == 4
-    assert find_interval_index(intervals, -5) == 0
+    assert find_interval_index_with_intervals(intervals, 15) == 0
+    assert find_interval_index_with_intervals(intervals, 25) == 1
+    assert find_interval_index_with_intervals(intervals, 33) == 1
+    assert find_interval_index_with_intervals(intervals, 100) == 4
+    assert find_interval_index_with_intervals(intervals, 125) == 4
+    assert find_interval_index_with_intervals(intervals, 126) == 4
+    assert find_interval_index_with_intervals(intervals, -5) == 0
 
 
 def test_bary_representation():
@@ -389,6 +442,17 @@ def test_tree():
     assert tree.get_bary_decomposition(25) == [[0, 9], [9, 18], [18, 21], [21, 24], [24, 25], [25, 26]]
     assert tree.get_bary_decomposition(0) == [[0, 1]]
     assert tree.get_bary_decomposition(-1) == [[0, 1]]
+
+    # Space efficient version
+    B = 21
+    b = 3
+    tree = TreeBary(B, b, set_intervals=False)
+    assert tree.find_interval_index(15, 1) == 1
+    assert tree.find_interval_index(10, 1) == 1
+    assert tree.find_interval_index(9, 1) == 1
+    assert tree.find_interval_index(33, 1) == 2
+    assert tree.find_interval_index(-5, 1) == 0
+    assert tree.find_interval_index(7, 3) == 7
 
 
 test_get_bary_partition()
