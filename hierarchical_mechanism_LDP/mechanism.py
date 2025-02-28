@@ -16,7 +16,7 @@ class Private_TreeBary(TreeBary):
         """
         super().__init__(B, b, set_intervals)
         # attributes have the same shape of intervals but initialized with zeros
-        self.attributes: list[list[float]] = [[0.] * (b ** level) for level in range(self.depth)]
+        self.attributes: list[np.ndarray] = [np.zeros(b ** level) for level in range(self.depth)]
         self.N = None  # total number of users that updated the tree
         self.cdf = None
         self.eps = None
