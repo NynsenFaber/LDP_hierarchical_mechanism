@@ -1,8 +1,8 @@
-from .ldp_protocol import ldp_protocol, get_client_server
+from .ldp_protocol import get_client_server
 from .data_structure import TreeBary
 from .computeamplification import numericalanalysis, closedformanalysis
-from typing import Union
 import numpy as np
+from tqdm import tqdm
 
 
 class Private_TreeBary(TreeBary):
@@ -47,7 +47,8 @@ class Private_TreeBary(TreeBary):
 
     def update_tree(self, data: np.ndarray,
                     post_process: bool = True,
-                    delete_data: bool = False):
+                    delete_data: bool = False,
+                    verbose: bool = False):
         """
         Update the tree with the data using the LDP protocol. If post_process is True, the tree is post processed using the
         algorithm provided by Hay et al. (2009).
@@ -61,6 +62,7 @@ class Private_TreeBary(TreeBary):
         :param data: data to update the tree
         :param post_process: bool, if True the tree is post processed and the cdf is computed
         :param delete_data: bool, if True the data is deleted after the update
+        :param verbose: bool, if True a progress bar is shown
         """
         # check if server and client are initialized
         if self.clients is None or self.servers is None:
@@ -70,8 +72,12 @@ class Private_TreeBary(TreeBary):
 
         # this counter is used to keep track of the number of users that updated the tree at each level
         counts = np.zeros(self.depth, dtype=int)
+        if verbose:
+            iterator = tqdm(range(len(data)), colour='green')
+        else:
+            iterator = range(len(data))
         # iterate over the data and privatize it
-        for i in range(len(data)):
+        for i in iterator:
             # sample a user
             user_value = data[i]
             # select a random level of the tree
@@ -88,21 +94,25 @@ class Private_TreeBary(TreeBary):
         if delete_data: del self.clients
 
         # update the attributes of the Private tree, do not update the root
-        for i, level_attributes in enumerate(self.attributes):
+        if verbose:
+            print("\nComputing attributes...")
+            iterator = tqdm(enumerate(self.attributes), colour='green', total=self.depth)
+        else:
+            iterator = enumerate(self.attributes)
+        for i, level_attributes in iterator:
             if i == 0:  # the root gets 1.
-                self.attributes[i] = [1.]
+                self.attributes[i] = np.array([1.])
                 continue
-            for j in range(len(level_attributes)):
-                # as the root is not updated, we need to shift the index by 1
-                self.attributes[i][j] = get_frequency(self.servers[i - 1], counts[i - 1], j)
+            self.attributes[i] = np.array([get_frequency(self.servers[i - 1], counts[i - 1], j)
+                                           for j in range(len(level_attributes))])
 
         if delete_data: del self.servers
 
         self.N = sum(counts)
         if post_process:
-            self.post_process()
+            self.post_process(delete_data)
 
-    def post_process(self):
+    def post_process(self, delete_data: bool = False):
         """
         Post process the tree by using the algorithm provided in the paper.
 
@@ -128,9 +138,10 @@ class Private_TreeBary(TreeBary):
                 self.attributes[level][j] + (1 / B) * (parent_attributes_rep[j] - children_sum[j])
                 for j in range(len(self.attributes[level]))
             ]
-
         # The order of computation of range query is not important thanks to post processing
         self.cdf = np.cumsum(self.attributes[-1])
+
+        if delete_data: del self.attributes
 
     def get_privacy(self, **kwargs) -> float:
         """

@@ -2,6 +2,8 @@ name: LDP_HM
 channels:
   - conda-forge
 dependencies:
+  - pympler
+  - tqdm
   - pip:
       - pure-ldp==1.2.0
       - scikit-learn==1.6.1
