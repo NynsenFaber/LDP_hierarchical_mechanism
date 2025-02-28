@@ -38,27 +38,26 @@ def ldp_protocol(data: list[Union[int, float]],
     counts = np.zeros(depth, dtype=int)
     # create the clients and servers for each level of the tree, not for the root
     for level in range(1, depth):
+        D = int(tree.b ** level)
         # ------------- Local Hashing
         if protocol == 'local_hashing':
-            clients.append(LHClient(epsilon=eps, d=len(intervals[level]), use_olh=True))
-            servers.append(LHServer(epsilon=eps, d=len(intervals[level]), use_olh=True))
+            clients.append(LHClient(epsilon=eps, d=D, use_olh=True))
+            servers.append(LHServer(epsilon=eps, d=D, use_olh=True))
 
         # ------------- Direct Encoding
         elif protocol == 'direct_encoding':
-            clients.append(DEClient(epsilon=eps, d=len(intervals[level])))
-            servers.append(DEServer(epsilon=eps, d=len(intervals[level])))
+            clients.append(DEClient(epsilon=eps, d=D))
+            servers.append(DEServer(epsilon=eps, d=D))
 
         # ------------- Hadamard Response
         elif protocol == 'hadamard_response':
-            server = HadamardResponseServer(epsilon=eps, d=len(intervals[level]))
-            client = HadamardResponseClient(epsilon=eps, d=len(intervals[level]), hash_funcs=server.get_hash_funcs())
-            servers.append(server)
-            clients.append(client)
+            servers.append(HadamardResponseServer(epsilon=eps, d=D))
+            clients.append(HadamardResponseClient(epsilon=eps, d=D, hash_funcs=server.get_hash_funcs()))
 
         # ------------- Unary Encoding
         elif protocol == 'unary_encoding':
-            clients.append(UEClient(epsilon=eps, d=len(intervals[level]), use_oue=True))
-            servers.append(UEServer(epsilon=eps, d=len(intervals[level]), use_oue=True))
+            clients.append(UEClient(epsilon=eps, d=D, use_oue=True))
+            servers.append(UEServer(epsilon=eps, d=D, use_oue=True))
 
         else:
             raise ValueError(
