@@ -7,16 +7,16 @@ import numpy as np
 
 class Private_TreeBary(TreeBary):
 
-    def __init__(self, B: int, b: int):
+    def __init__(self, B: int, b: int, set_intervals: bool = False):
         """
         Constructor
 
         :param B: bound of the data
         :param b: branching factor of the tree
         """
-        super().__init__(B, b)
+        super().__init__(B, b, set_intervals)
         # attributes have the same shape of intervals but initialized with zeros
-        self.attributes: list[list[float]] = [[0.] * len(interval) for interval in self.intervals]
+        self.attributes: list[list[float]] = [[0.] * (b ** level) for level in range(self.depth)]
         self.N = None  # total number of users that updated the tree
         self.cdf = None
         self.eps = None
