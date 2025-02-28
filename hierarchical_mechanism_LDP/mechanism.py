@@ -1,4 +1,4 @@
-from .ldp_protocol import ldp_protocol
+from .ldp_protocol import ldp_protocol, get_client_server
 from .data_structure import TreeBary
 from .computeamplification import numericalanalysis, closedformanalysis
 from typing import Union
@@ -7,19 +7,24 @@ import numpy as np
 
 class Private_TreeBary(TreeBary):
 
-    def __init__(self, B: int, b: int, set_intervals: bool = False):
+    def __init__(self, B: int, b: int, eps: float,
+                 protocol: str = "unary_encoding"):
         """
         Constructor
 
         :param B: bound of the data
         :param b: branching factor of the tree
+        :param eps: privacy parameter
+        :param protocol: protocol to use for LDP frequency estimation
+
         """
-        super().__init__(B, b, set_intervals)
+        super().__init__(B, b, set_intervals=False)  # space efficient data structure
         # attributes have the same shape of intervals but initialized with zeros
         self.attributes: list[np.ndarray] = [np.zeros(b ** level) for level in range(self.depth)]
+        self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
+        self.eps = eps  # privacy budget
         self.N = None  # total number of users that updated the tree
-        self.cdf = None
-        self.eps = None
+        self.cdf = None  # cumulative distribution function
 
     def __getitem__(self, item: tuple[int, int]) -> float:
         """
@@ -31,25 +36,56 @@ class Private_TreeBary(TreeBary):
         """
         return self.attributes[item[0]][item[1]]
 
-    def update_tree(self, data: list[Union[float, int]],
-                    eps: float, protocol: str, post_process: bool = True):
+    def initialize_clients_servers(self, eps: float, protocol: str):
+        """
+        Initialize clients and servers for the tree.
+
+        :param eps: privacy parameter
+        :param protocol: protocol to use for LDP frequency estimation
+        """
+        self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
+
+    def update_tree(self, data: np.ndarray,
+                    post_process: bool = True,
+                    delete_data: bool = False):
         """
         Update the tree with the data using the LDP protocol. If post_process is True, the tree is post processed using the
         algorithm provided by Hay et al. (2009).
 
+        LDP protocol functions for the b-ary mechanism. It returns a list of servers with the privatized data for the
+        b-adic decomposition of the domain (in intervals).
+
+        Ref: Graham Cormode, Samuel Maddock, and Carsten Maple.
+        Frequency Estimation under Local Differential Privacy. PVLDB, 14(11): 2046 - 2058, 2021
+
         :param data: data to update the tree
-        :param eps: privacy parameter
-        :param protocol: protocol to use for LDP frequency estimation
         :param post_process: bool, if True the tree is post processed and the cdf is computed
+        :param delete_data: bool, if True the data is deleted after the update
         """
+        # check if server and client are initialized
+        if self.clients is None or self.servers is None:
+            raise ValueError(
+                "Clients and servers are not initialized, run initialize_clients_servers before updating the tree"
+            )
 
-        # run the LDP protocol
-        servers, counts = ldp_protocol(data=data,
-                                       eps=eps,
-                                       tree=self,
-                                       protocol=protocol)
+        # this counter is used to keep track of the number of users that updated the tree at each level
+        counts = np.zeros(self.depth, dtype=int)
+        # iterate over the data and privatize it
+        for i in range(len(data)):
+            # sample a user
+            user_value = data[i]
+            # select a random level of the tree
+            level = np.random.randint(1, self.depth)
+            # select the index of the subinterval where the user belongs
+            interval_index = self.find_interval_index(user_value, level)
+            # get the client and server (have index with an offset of 1)
+            client = self.clients[level - 1]
+            # privatize the data and send to the server
+            priv_data = client.privatise(interval_index)
+            self.servers[level - 1].aggregate(priv_data)
+            counts[level - 1] += 1
 
-        self.eps = eps
+        if delete_data: del self.clients
 
         # update the attributes of the Private tree, do not update the root
         for i, level_attributes in enumerate(self.attributes):
@@ -58,7 +94,10 @@ class Private_TreeBary(TreeBary):
                 continue
             for j in range(len(level_attributes)):
                 # as the root is not updated, we need to shift the index by 1
-                self.attributes[i][j] = get_frequency(servers[i - 1], counts[i - 1], j)
+                self.attributes[i][j] = get_frequency(self.servers[i - 1], counts[i - 1], j)
+
+        if delete_data: del self.servers
+
         self.N = sum(counts)
         if post_process:
             self.post_process()
