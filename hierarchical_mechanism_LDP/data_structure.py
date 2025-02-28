@@ -17,6 +17,8 @@ class TreeBary:
 
         :param B: bound of the data, of the form [0, B]
         :param b: branching factor of the tree
+        :param set_intervals: whether to set the intervals of the tree or not. If False, the intervals are not set
+            and the data structure is more space efficient.
         """
         self.b = b
         # e.g. for B=8, b=2, depth=3, while for B=9, b=2, depth=4 as 2^4=16>=9

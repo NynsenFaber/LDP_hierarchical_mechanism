@@ -3,6 +3,7 @@ from pure_ldp.frequency_oracles.direct_encoding import DEClient, DEServer
 from pure_ldp.frequency_oracles.hadamard_response import HadamardResponseClient, HadamardResponseServer
 from pure_ldp.frequency_oracles.unary_encoding import UEClient, UEServer
 
+
 def get_client_server(protocol: str, eps: float, depth: int, b: int) -> tuple:
     """
     Return the client and server for a given protocol
@@ -11,7 +12,8 @@ def get_client_server(protocol: str, eps: float, depth: int, b: int) -> tuple:
 
     :param protocol: the protocol to use
     :param eps: privacy parameter
-    :param D: the number of subintervals
+    :param depth: depth of the tree
+    :param b: branching factor of the tree
 
     :return: the client and server
     """
@@ -25,6 +27,9 @@ def get_client_server(protocol: str, eps: float, depth: int, b: int) -> tuple:
             server = HadamardResponseServer(epsilon=eps, d=D)
             servers.append(server)
             clients.append(HadamardResponseClient(epsilon=eps, d=D, hash_funcs=server.get_hash_funcs()))
+            # apply local hashing
+            # clients.append(LHClient(epsilon=eps, d=D, use_olh=True))
+            # servers.append(LHServer(epsilon=eps, d=D, use_olh=True))
         else:
             # ------------- Local Hashing
             if protocol == 'local_hashing':

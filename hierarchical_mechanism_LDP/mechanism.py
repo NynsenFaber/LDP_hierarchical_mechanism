@@ -20,21 +20,13 @@ class Private_TreeBary(TreeBary):
         """
         super().__init__(B, b, set_intervals=False)  # space efficient data structure
         # attributes have the same shape of intervals but initialized with zeros
-        self.attributes: list[np.ndarray] = [np.zeros(b ** level) for level in range(self.depth)]
         self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
         self.eps = eps  # privacy budget
+        self.counts = np.zeros(self.depth - 1, dtype=int)  # counts of the data at each level (not the root)
+
         self.N = None  # total number of users that updated the tree
         self.cdf = None  # cumulative distribution function
-
-    def __getitem__(self, item: tuple[int, int]) -> float:
-        """
-        Get the attribute at the given level and index
-
-        :param item: the level and index of the interval
-
-        :return: the attribute at the given level and index
-        """
-        return self.attributes[item[0]][item[1]]
+        self.attributes = None  # attributes of the tree
 
     def initialize_clients_servers(self, eps: float, protocol: str):
         """
@@ -45,10 +37,7 @@ class Private_TreeBary(TreeBary):
         """
         self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
 
-    def update_tree(self, data: np.ndarray,
-                    post_process: bool = True,
-                    delete_data: bool = False,
-                    verbose: bool = False):
+    def update_tree(self, data: np.ndarray, verbose: bool = False):
         """
         Update the tree with the data using the LDP protocol. If post_process is True, the tree is post processed using the
         algorithm provided by Hay et al. (2009).
@@ -61,7 +50,6 @@ class Private_TreeBary(TreeBary):
 
         :param data: data to update the tree
         :param post_process: bool, if True the tree is post processed and the cdf is computed
-        :param delete_data: bool, if True the data is deleted after the update
         :param verbose: bool, if True a progress bar is shown
         """
         # check if server and client are initialized
@@ -71,7 +59,6 @@ class Private_TreeBary(TreeBary):
             )
 
         # this counter is used to keep track of the number of users that updated the tree at each level
-        counts = np.zeros(self.depth, dtype=int)
         if verbose:
             iterator = tqdm(range(len(data)), colour='green')
         else:
@@ -89,9 +76,23 @@ class Private_TreeBary(TreeBary):
             # privatize the data and send to the server
             priv_data = client.privatise(interval_index)
             self.servers[level - 1].aggregate(priv_data)
-            counts[level - 1] += 1
+            self.counts[level - 1] += 1
 
-        if delete_data: del self.clients
+        # clients are not needed anymore
+        del self.clients
+
+        self.N = sum(self.counts)
+
+    def compute_attributes(self, verbose: bool = False) -> None:
+        """
+        Compute the attributes of the tree. This might be slow for large trees as the levels close to the leaves
+        have servers with large dimension, thus it is slow to get an estimate for each element of the interval.
+
+        :param verbose: Show progress bar
+
+        :return:
+        """
+        self.attributes: list[np.ndarray] = [np.zeros(self.b ** level) for level in range(self.depth)]
 
         # update the attributes of the Private tree, do not update the root
         if verbose:
@@ -103,21 +104,21 @@ class Private_TreeBary(TreeBary):
             if i == 0:  # the root gets 1.
                 self.attributes[i] = np.array([1.])
                 continue
-            self.attributes[i] = np.array([get_frequency(self.servers[i - 1], counts[i - 1], j)
+            self.attributes[i] = np.array([get_frequency(self.servers[i - 1], self.counts[i - 1], j)
                                            for j in range(len(level_attributes))])
 
-        if delete_data: del self.servers
+        # servers are not needed anymore
+        del self.servers
 
-        self.N = sum(counts)
-        if post_process:
-            self.post_process(delete_data)
-
-    def post_process(self, delete_data: bool = False):
+    def post_process(self):
         """
         Post process the tree by using the algorithm provided in the paper.
 
         Hay, Michael, et al. "Boosting the accuracy of differentially-private histograms through consistency." arXiv preprint arXiv:0904.0942 (2009).
         """
+        if self.attributes is None:
+            self.compute_attributes(verbose=True)
+
         B = self.b
         # Step 1: Weighted Averaging (from leaves not included to root)
         for level in reversed(range(self.depth - 1)):
@@ -138,10 +139,11 @@ class Private_TreeBary(TreeBary):
                 self.attributes[level][j] + (1 / B) * (parent_attributes_rep[j] - children_sum[j])
                 for j in range(len(self.attributes[level]))
             ]
-        # The order of computation of range query is not important thanks to post processing
+        # The order of computation of range query is not important thanks to post-processing
         self.cdf = np.cumsum(self.attributes[-1])
 
-        if delete_data: del self.attributes
+        # attributes are not needed anymore
+        del self.attributes
 
     def get_privacy(self, **kwargs) -> float:
         """
@@ -181,22 +183,25 @@ class Private_TreeBary(TreeBary):
     ### QUERY FUNCTIONS ###
     #######################
 
-    def get_quantile(self, quantile: float):
+    def get_quantile(self, q: float) -> int:
         """
         Get the quantile of the data
 
-        :param quantile: the quantile to get
+        :param q: the quantile to get
 
-        :return: the quantile
+        :return: the q-quantile as integer
         """
-        assert 0 <= quantile <= 1, "Quantile must be between 0 and 1"
+        assert 0 <= q <= 1, "Quantile must be between 0 and 1"
 
-        if self.cdf is None:
-            self.compute_cdf()
-        # retrive only elements with positive values
-        index = np.where(self.cdf - quantile >= 0)[0]
-        # find the minimum index that is closest to the quantile
-        return min(index, key=lambda i: self.cdf[i] - quantile)
+        if self.cdf is not None:
+            # retrive only elements with positive values
+            index = np.where(self.cdf - q >= 0)[0]
+            # find the minimum index that is closest to the quantile
+            return min(index, key=lambda i: self.cdf[i] - q)
+        if self.attributes is not None:
+            return None
+        else:
+            return self._root_to_leaf(q)
 
     def get_range_query(self, left: int, right: int, normalized: bool = False) -> float:
         """
@@ -242,6 +247,36 @@ class Private_TreeBary(TreeBary):
             # append the bin
             bins.append((left, right))
         return bins
+
+    def _root_to_leaf(self, q: float) -> int:
+        """
+        Get the q-quantile of the data using the root to leaf approach. Start with the first level below the root and
+        get the node that has a cumulative sum greater than the quantile. Then, move to the next level and get the node
+        that has a cumulative sum greater than the quantile. Continue until the last level.
+
+        :param q: the quantile to get
+
+        :return: the q-quantile as integer
+        """
+        assert 0 <= q <= 1, "Quantile must be between 0 and 1"
+
+        # start from the first level below the root
+        def __get_node_at_level(level: int, q_sum: float, offset: int) -> int:
+            for i in range(self.b ** level):
+                q_add = get_frequency(self.servers[level - 1], self.counts[level - 1], offset + i)
+                if q_sum + q_add >= q:
+                    if level == self.depth - 1:
+                        return offset + i
+                    else:
+                        offset = offset * self.b + i * self.b
+                        return __get_node_at_level(level + 1, q_sum, offset)
+                q_sum += q_add
+            return self.b ** level - 1
+
+        return __get_node_at_level(1, 0, 0)
+
+
+
 
     ######################################################
     ### Function useless if the tree is post processed ###
