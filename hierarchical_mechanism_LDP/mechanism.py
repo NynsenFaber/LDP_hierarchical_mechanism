@@ -104,12 +104,17 @@ class Private_TreeBary(TreeBary):
             iterator = tqdm(enumerate(self.attributes), colour='green', total=self.depth)
         else:
             iterator = enumerate(self.attributes)
+
         for i, level_attributes in iterator:
             if i == 0:  # the root gets 1.
                 self.attributes[i] = np.array([1.])
                 continue
-            self.attributes[i] = np.array([get_frequency(self.servers[i - 1], self.counts[i - 1], j)
-                                           for j in range(len(level_attributes))])
+            if self.counts is not None:
+                self.attributes[i] = np.array([get_frequency(self.servers[i - 1], self.counts[i - 1], j)
+                                               for j in range(len(level_attributes))])
+            else:
+                self.attributes[i] = np.array([absolute_frequency(self.servers[i - 1], j)
+                                               for j in range(len(level_attributes))])
 
         # servers are not needed anymore
         del self.servers
@@ -338,6 +343,15 @@ def get_frequency(server, count, item) -> float:
     :param item: the item to estimate
     """
     return server.estimate(item, suppress_warnings=True) / count
+
+
+def absolute_frequency(server, item) -> float:
+    """
+    Estimate the absolute frequency of an item using the server.
+    :param server: a server (an instance of LDP Frequency Oracle server of pure_ldp package)
+    :param item: the item to estimate
+    """
+    return server.estimate(item, suppress_warnings=True)
 
 
 def sum_chunks(arr: np.array, chunk_size: int) -> np.array:
