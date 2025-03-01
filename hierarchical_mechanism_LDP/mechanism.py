@@ -1,5 +1,5 @@
 from .ldp_protocol import get_client_server
-from .data_structure import TreeBary
+from .bary_tree import TreeBary
 from .computeamplification import numericalanalysis, closedformanalysis
 import numpy as np
 from tqdm import tqdm
@@ -22,11 +22,13 @@ class Private_TreeBary(TreeBary):
         # attributes have the same shape of intervals but initialized with zeros
         self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
         self.eps = eps  # privacy budget
-        self.counts = np.zeros(self.depth - 1, dtype=int)  # counts of the data at each level (not the root)
 
         self.N = None  # total number of users that updated the tree
         self.cdf = None  # cumulative distribution function
         self.attributes = None  # attributes of the tree
+        # counts how many users updated the tree at each level, used to normalize the data
+        # when applying updates with on_all_levels=False
+        self.counts = None
 
     def initialize_clients_servers(self, eps: float, protocol: str):
         """
@@ -37,7 +39,9 @@ class Private_TreeBary(TreeBary):
         """
         self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
 
-    def update_tree(self, data: np.ndarray, verbose: bool = False):
+    def update_tree(self, data: np.ndarray,
+                    on_all_levels: bool = True,
+                    verbose: bool = False):
         """
         Update the tree with the data using the LDP protocol. If post_process is True, the tree is post processed using the
         algorithm provided by Hay et al. (2009).
@@ -49,7 +53,8 @@ class Private_TreeBary(TreeBary):
         Frequency Estimation under Local Differential Privacy. PVLDB, 14(11): 2046 - 2058, 2021
 
         :param data: data to update the tree
-        :param post_process: bool, if True the tree is post processed and the cdf is computed
+        :param on_all_levels: bool, if True the tree is updated on all levels, otherwise
+            each user select a random level to update the tree.
         :param verbose: bool, if True a progress bar is shown
         """
         # check if server and client are initialized
@@ -58,30 +63,29 @@ class Private_TreeBary(TreeBary):
                 "Clients and servers are not initialized, run initialize_clients_servers before updating the tree"
             )
 
+        if not on_all_levels:
+            # initialize the counts
+            self.counts = [0 for _ in range(self.depth - 1)]
+
         # this counter is used to keep track of the number of users that updated the tree at each level
-        if verbose:
-            iterator = tqdm(range(len(data)), colour='green')
-        else:
-            iterator = range(len(data))
+        iterator = tqdm(range(len(data)), colour='green') if verbose else range(len(data))
+
         # iterate over the data and privatize it
         for i in iterator:
-            # sample a user
             user_value = data[i]
-            # select a random level of the tree
-            level = np.random.randint(1, self.depth)
-            # select the index of the subinterval where the user belongs
-            interval_index = self.find_interval_index(user_value, level)
-            # get the client and server (have index with an offset of 1)
-            client = self.clients[level - 1]
-            # privatize the data and send to the server
-            priv_data = client.privatise(interval_index)
-            self.servers[level - 1].aggregate(priv_data)
-            self.counts[level - 1] += 1
+            levels = range(1, self.depth) if on_all_levels else [np.random.randint(1, self.depth)]
+            for level in levels:
+                interval_index = self.find_interval_index(user_value, level)
+                client = self.clients[level - 1]
+                priv_data = client.privatise(interval_index)
+                self.servers[level - 1].aggregate(priv_data)
+                if not on_all_levels:
+                    self.counts[level - 1] += 1
 
         # clients are not needed anymore
         del self.clients
 
-        self.N = sum(self.counts)
+        self.N = len(data)
 
     def compute_attributes(self, verbose: bool = False) -> None:
         """
