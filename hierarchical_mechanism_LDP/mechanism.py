@@ -217,8 +217,6 @@ class Private_TreeBary(TreeBary):
             index = np.where(self.cdf - q >= 0)[0]
             # find the minimum index that is closest to the quantile
             return min(index, key=lambda i: self.cdf[i] - q)
-        # if self.attributes is not None:
-        #     return None
         else:
             return self._root_to_leaf(q)
 
@@ -233,14 +231,18 @@ class Private_TreeBary(TreeBary):
         """
 
         assert 0 <= left <= right <= self.B, "Left and right must be between 0 and B"
-        # compute right quantile
-        result_right = self.cdf[right]
-        # compute left quantile
-        result_left = self.cdf[left]
-        if normalized:
-            return result_right - result_left
+
+        if self.cdf is not None:
+            # compute right quantile
+            result_right = self.cdf[right]
+            # compute left quantile
+            result_left = self.cdf[left]
+            if normalized:
+                return result_right - result_left
+            else:
+                return (result_right - result_left) * self.N
         else:
-            return (result_right - result_left) * self.N
+            return self.get_range_query_bary(left, right, normalized)
 
     def get_bins(self, quantiles: list[float], alpha: float) -> list[tuple[int, int]]:
         """
