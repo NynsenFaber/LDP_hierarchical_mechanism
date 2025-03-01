@@ -8,7 +8,8 @@ from tqdm import tqdm
 class Private_TreeBary(TreeBary):
 
     def __init__(self, B: int, b: int, eps: float,
-                 protocol: str = "unary_encoding"):
+                 protocol: str = "unary_encoding",
+                 on_all_levels: bool = True):
         """
         Constructor
 
@@ -16,12 +17,19 @@ class Private_TreeBary(TreeBary):
         :param b: branching factor of the tree
         :param eps: privacy parameter
         :param protocol: protocol to use for LDP frequency estimation
+        :param on_all_levels: bool, if True the tree is updated on all levels, otherwise it each user select a random level
+        of the tree to update
 
         """
         super().__init__(B, b, set_intervals=False)  # space efficient data structure
         # attributes have the same shape of intervals but initialized with zeros
-        self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
         self.eps = eps  # privacy budget
+        self.on_all_levels = on_all_levels
+
+        # create Frequency Oracles
+        if on_all_levels:
+            eps = eps / (self.depth - 1)  # Privacy budget is split among the levels
+        self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
 
         self.N = None  # total number of users that updated the tree
         self.cdf = None  # cumulative distribution function
@@ -40,7 +48,6 @@ class Private_TreeBary(TreeBary):
         self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
 
     def update_tree(self, data: np.ndarray,
-                    on_all_levels: bool = True,
                     verbose: bool = False):
         """
         Update the tree with the data using the LDP protocol. If post_process is True, the tree is post processed using the
@@ -53,8 +60,6 @@ class Private_TreeBary(TreeBary):
         Frequency Estimation under Local Differential Privacy. PVLDB, 14(11): 2046 - 2058, 2021
 
         :param data: data to update the tree
-        :param on_all_levels: bool, if True the tree is updated on all levels, otherwise
-            each user select a random level to update the tree.
         :param verbose: bool, if True a progress bar is shown
         """
         # check if server and client are initialized
@@ -63,7 +68,7 @@ class Private_TreeBary(TreeBary):
                 "Clients and servers are not initialized, run initialize_clients_servers before updating the tree"
             )
 
-        if not on_all_levels:
+        if not self.on_all_levels:
             # initialize the counts
             self.counts = [0 for _ in range(self.depth - 1)]
 
@@ -73,13 +78,13 @@ class Private_TreeBary(TreeBary):
         # iterate over the data and privatize it
         for i in iterator:
             user_value = data[i]
-            levels = range(1, self.depth) if on_all_levels else [np.random.randint(1, self.depth)]
+            levels = range(1, self.depth) if self.on_all_levels else [np.random.randint(1, self.depth)]
             for level in levels:
                 interval_index = self.find_interval_index(user_value, level)
                 client = self.clients[level - 1]
                 priv_data = client.privatise(interval_index)
                 self.servers[level - 1].aggregate(priv_data)
-                if not on_all_levels:
+                if not self.on_all_levels:
                     self.counts[level - 1] += 1
 
         # clients are not needed anymore
@@ -109,7 +114,7 @@ class Private_TreeBary(TreeBary):
             if i == 0:  # the root gets 1.
                 self.attributes[i] = np.array([1.])
                 continue
-            if self.counts is not None:
+            if not self.on_all_levels:
                 self.attributes[i] = np.array([get_frequency(self.servers[i - 1], self.counts[i - 1], j)
                                                for j in range(len(level_attributes))])
             else:
@@ -180,6 +185,11 @@ class Private_TreeBary(TreeBary):
         if delta is None:
             raise ValueError("Delta must be provided if shuffle is True")
 
+        if not self.on_all_levels:
+            raise Exception(
+                "the update_tree function was called with on_all_levels=False. "
+                "No privacy amplification by shuffling is possible in this case."
+            )
         if numerical:
             num_iterations = kwargs.get('num_iterations', 10)
             step = kwargs.get('step', 100)
@@ -207,8 +217,8 @@ class Private_TreeBary(TreeBary):
             index = np.where(self.cdf - q >= 0)[0]
             # find the minimum index that is closest to the quantile
             return min(index, key=lambda i: self.cdf[i] - q)
-        if self.attributes is not None:
-            return None
+        # if self.attributes is not None:
+        #     return None
         else:
             return self._root_to_leaf(q)
 
@@ -259,6 +269,8 @@ class Private_TreeBary(TreeBary):
 
     def _root_to_leaf(self, q: float) -> int:
         """
+        Implementatio of LDPquantile estimation
+
         Get the q-quantile of the data using the root to leaf approach. Start with the first level below the root and
         get the node that has a cumulative sum greater than the quantile. Then, move to the next level and get the node
         that has a cumulative sum greater than the quantile. Continue until the last level.
