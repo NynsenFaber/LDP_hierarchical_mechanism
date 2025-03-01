@@ -262,16 +262,21 @@ class Private_TreeBary(TreeBary):
 
         # start from the first level below the root
         def __get_node_at_level(level: int, q_sum: float, offset: int) -> int:
-            for i in range(self.b ** level):
+            for i in range(self.b):
                 q_add = get_frequency(self.servers[level - 1], self.counts[level - 1], offset + i)
                 if q_sum + q_add >= q:
                     if level == self.depth - 1:
                         return offset + i
                     else:
-                        offset = offset * self.b + i * self.b
+                        offset = (offset + i) * self.b
                         return __get_node_at_level(level + 1, q_sum, offset)
-                q_sum += q_add
-            return self.b ** level - 1
+                if i < self.b - 1:
+                    q_sum += q_add
+            if level == self.depth - 1:
+                return self.b ** level - 1
+            else:
+                offset = (offset + self.b - 1) * self.b
+                return __get_node_at_level(level + 1, q_sum, offset)
 
         return __get_node_at_level(1, 0, 0)
 
