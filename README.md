@@ -21,19 +21,34 @@ It is based on the class `Private_Tree` that implements the hierarchical mechani
 from hierarchical_mechanism_LDP import Private_TreeBary
 import numpy as np
 
+N = 10_000
 B = 4000  # bound of the data, i.e., the data is in [0, B]
 b = 4  # branching factor of the tree
-eps = 1  # privacy budget
+eps = 5.  # privacy budget
 q = 0.4  # quantile to estimate
-protocol = 'unary_encoding'  # protocol to use for LDP frequency estimation
+data = np.random.randint(0, B, N)  # generate random data
 
-tree = Private_TreeBary(B, b)
+tree = Private_TreeBary(B, b, eps, on_all_levels=True)
 
-data = np.random.randint(0, B, 100000)  # generate random data
-
-tree.update_tree(data, eps, protocol, post_process=True)  # update the tree with the data
+tree.update_tree(data)  # update the tree with the data
 ```
-The `post_process` boolean parameter is used to apply the post-processing step of the hierarchical mechanism.
+With the `Private_Tree` class, you can create a hierarchical mechanism with the following parameters:
+- `B`: the bound of the data, i.e., the data is in [0, B]
+- `b`: the branching factor of the tree
+- `eps`: the privacy budget
+- `on_all_levels`: boolean parameter that decides if the users reports to all levels or they sample a random level to report. The default value is `True`.
+
+Other parameters of `Private_Tree` are:
+- `protocol`: It set to default value "unary encoding" for unary encoding protocol for small dimesions. At large dimension >10_000 the protocol is set to be "Hadamard Randomized Response".
+
+### Additional Features
+```python
+tree.compute_attributes()  # compute the attributes of the tree and delete the frequency protocol
+tree.post_process()  # It post-process the tree attributes and compute the entire cdf.
+```
+With the `compute_attributes` method, all the frequency oracles are used to estimate the tree attributes. The tree attributes are the number of users in each node of the tree. The frequency protocol is deleted after the computation of the attributes.
+
+The `post_process` method is used to apply the post-processing step of the hierarchical mechanism.
 The post-processing step is used to improve the accuracy of the mechanism. The post-processing step is applied by default.
 
 Post-processing applies the Hierarchial Mechanism proposed by Hay et al. in 
@@ -58,7 +73,7 @@ True quantile: 1598.0
 
 ### Range Queries
 You can estimate the range queries of the data with `Private_Tree.get_range_query(a, b)`, where `a` and `b` are the bounds of the range query.
-Additionally, you can return a normalized range query.
+Additionally, you can return a normalized range query. 
 
 ```python
 
