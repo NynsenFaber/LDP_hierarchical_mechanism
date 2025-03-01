@@ -275,9 +275,6 @@ class Private_TreeBary(TreeBary):
 
         return __get_node_at_level(1, 0, 0)
 
-
-
-
     ######################################################
     ### Function useless if the tree is post processed ###
     ######################################################
