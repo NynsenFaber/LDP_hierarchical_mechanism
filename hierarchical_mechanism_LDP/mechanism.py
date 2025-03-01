@@ -118,7 +118,7 @@ class Private_TreeBary(TreeBary):
                 self.attributes[i] = np.array([get_frequency(self.servers[i - 1], self.counts[i - 1], j)
                                                for j in range(len(level_attributes))])
             else:
-                self.attributes[i] = np.array([absolute_frequency(self.servers[i - 1], j)
+                self.attributes[i] = np.array([get_absolute_frequency(self.servers[i - 1], j)
                                                for j in range(len(level_attributes))])
 
         # servers are not needed anymore
@@ -283,25 +283,32 @@ class Private_TreeBary(TreeBary):
         """
         assert 0 <= q <= 1, "Quantile must be between 0 and 1"
 
+        if self.on_all_levels:
+            target = np.floor(q * self.N)
+            estimator = lambda level, item: get_absolute_frequency(self.servers[level - 1], item)
+        else:
+            target = q
+            estimator = lambda level, item: get_frequency(self.servers[level - 1], self.counts[level - 1], item)
+
         # start from the first level below the root
-        def __get_node_at_level(level: int, q_sum: float, offset: int) -> int:
+        def __get_node_at_level(level: int, S: float, offset: int) -> int:
             for i in range(self.b):
-                q_add = get_frequency(self.servers[level - 1], self.counts[level - 1], offset + i)
-                if q_sum + q_add >= q:
+                # for sure the estimator is less than N, for either cases
+                S_add = min(estimator(level, offset + i), self.N)
+                if S + S_add >= target:
                     if level == self.depth - 1:
                         return offset + i
                     else:
                         offset = (offset + i) * self.b
-                        return __get_node_at_level(level + 1, q_sum, offset)
+                        return __get_node_at_level(level + 1, S, offset)
                 if i < self.b - 1:
-                    q_sum += q_add
+                    S += S_add
             if level == self.depth - 1:
-                return self.b ** level - 1
+                return offset + self.b - 1
             else:
                 offset = (offset + self.b - 1) * self.b
-                return __get_node_at_level(level + 1, q_sum, offset)
-
-        return __get_node_at_level(1, 0, 0)
+                return __get_node_at_level(level + 1, S, offset)
+        return __get_node_at_level(1, 0, 0) + 1
 
     ######################################################
     ### Function useless if the tree is post processed ###
@@ -359,7 +366,7 @@ def get_frequency(server, count, item) -> float:
     return server.estimate(item, suppress_warnings=True) / count
 
 
-def absolute_frequency(server, item) -> float:
+def get_absolute_frequency(server, item) -> float:
     """
     Estimate the absolute frequency of an item using the server.
     :param server: a server (an instance of LDP Frequency Oracle server of pure_ldp package)
