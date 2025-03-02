@@ -295,19 +295,13 @@ class Private_TreeBary(TreeBary):
             for i in range(self.b):
                 # for sure the estimator is less than N, for either cases
                 S_add = min(estimator(level, offset + i), self.N)
-                if S + S_add >= target:
+                if S + S_add >= target or i == self.b - 1:
                     if level == self.depth - 1:
                         return offset + i
                     else:
                         offset = (offset + i) * self.b
                         return __get_node_at_level(level + 1, S, offset)
-                if i < self.b - 1:
-                    S += S_add
-            if level == self.depth - 1:
-                return offset + self.b - 1
-            else:
-                offset = (offset + self.b - 1) * self.b
-                return __get_node_at_level(level + 1, S, offset)
+                S += S_add
         return __get_node_at_level(1, 0, 0) + 1
 
     ######################################################
