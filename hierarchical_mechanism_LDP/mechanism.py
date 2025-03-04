@@ -26,9 +26,6 @@ class Private_TreeBary(TreeBary):
         self.eps = eps  # privacy budget
         self.on_all_levels = on_all_levels
 
-        # create Frequency Oracles
-        if on_all_levels:
-            eps = eps / (self.depth - 1)  # Privacy budget is split among the levels
         self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
 
         self.N = None  # total number of users that updated the tree
@@ -159,7 +156,7 @@ class Private_TreeBary(TreeBary):
         # attributes are not needed anymore
         del self.attributes
 
-    def get_privacy(self, **kwargs) -> float:
+    def get_privacy(self, **kwargs) -> tuple[float, str]:
         """
         Return the privacy (epsilon) of the mechanism. If shuffle is True, the privacy is computed using privacy amplification
         by shuffling given a delta parameter and the initial privacy budget used to update the tree.
@@ -173,15 +170,17 @@ class Private_TreeBary(TreeBary):
             - step: int, step for numerical analysis
             - upperbound: bool, if True the upperbound is computed, otherwise the lowerbound is computed
 
-        :return: upper or lower bound of the privacy
+        :return: upper or lower bound of the privacy, and the method used to compute it
         """
         shuffle = kwargs.get('shuffle', False)
         numerical = kwargs.get('numerical', False)
         delta = kwargs.get('delta', None)
 
         if not shuffle:
-            return self.eps
-
+            if self.on_all_levels:
+                return self.eps * (self.depth - 1)
+            else:
+                return self.eps
         if delta is None:
             raise ValueError("Delta must be provided if shuffle is True")
 
@@ -190,13 +189,29 @@ class Private_TreeBary(TreeBary):
                 "the update_tree function was called with on_all_levels=False. "
                 "No privacy amplification by shuffling is possible in this case."
             )
+        l = self.depth - 1
+        num_iterations = kwargs.get('num_iterations', 10)
+        step = kwargs.get('step', 100)
+        upperbound = kwargs.get('upperbound', True)
+
         if numerical:
-            num_iterations = kwargs.get('num_iterations', 10)
-            step = kwargs.get('step', 100)
-            upperbound = kwargs.get('upperbound', True)
-            return numericalanalysis(self.N, self.eps, delta, num_iterations, step, upperbound)
+            eps_shuffle = numericalanalysis(self.N, self.eps, delta / (2 * l), num_iterations, step, upperbound)
         else:
-            return closedformanalysis(self.N, self.eps, delta)
+            eps_shuffle = closedformanalysis(self.N, self.eps, delta / (2 * l))
+
+        eps_pure = eps_shuffle * l
+        eps_advanced = eps_shuffle * l * (np.exp(eps_shuffle) - 1) / (np.exp(eps_shuffle) + 1) + \
+                       eps_shuffle * np.sqrt(2 * l * np.log(2 / delta))
+
+        if eps_pure <= eps_advanced:
+            if numerical:
+                eps_shuffle = numericalanalysis(self.N, self.eps, delta / l, num_iterations, step, upperbound)
+            else:
+                eps_shuffle = closedformanalysis(self.N, self.eps, delta / l)
+            eps_pure = eps_shuffle * l
+            return eps_pure, "pure composition"
+        else:
+            return eps_advanced, "advanced composition"
 
     #######################
     ### QUERY FUNCTIONS ###
@@ -302,6 +317,7 @@ class Private_TreeBary(TreeBary):
                         offset = (offset + i) * self.b
                         return __get_node_at_level(level + 1, S, offset)
                 S += S_add
+
         return __get_node_at_level(1, 0, 0) + 1
 
     ######################################################
