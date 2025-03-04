@@ -12,7 +12,7 @@ The library is intended for testing the LDP hierarchical mechanism locally.
     pip install hierarchical-mechanism-LDP
 
 ## Usage
-It is based on the class `Private_Tree` that implements the hierarchical mechanism for local differential privacy. The class has the following methods:
+It is based on the class `Private_Tree` that implements the hierarchical mechanism for local differential privacy. 
 ### Initialization
 
 ```python
@@ -21,9 +21,9 @@ It is based on the class `Private_Tree` that implements the hierarchical mechani
 from hierarchical_mechanism_LDP import Private_TreeBary
 import numpy as np
 
-N = 10_000
-B = 4000  # bound of the data, i.e., the data is in [0, B]
-b = 4  # branching factor of the tree
+N = 100_000
+B = 1e6  # bound of the data, i.e., the data is in [0, B]
+b = 5  # branching factor of the tree
 eps = 5.  # privacy budget
 q = 0.4  # quantile to estimate
 data = np.random.randint(0, B, N)  # generate random data
@@ -35,7 +35,7 @@ tree.update_tree(data)  # update the tree with the data
 With the `Private_Tree` class, you can create a hierarchical mechanism with the following parameters:
 - `B`: the bound of the data, i.e., the data is in [0, B]
 - `b`: the branching factor of the tree
-- `eps`: the privacy budget
+- `eps`: the privacy budget used on the frequency protocol
 - `on_all_levels`: boolean parameter that decides if the users reports to all levels or they sample a random level to report. The default value is `True`.
 
 Other parameters of `Private_Tree` are:
@@ -49,7 +49,7 @@ tree.post_process()  # It post-process the tree attributes and compute the entir
 With the `compute_attributes` method, all the frequency oracles are used to estimate the tree attributes. The tree attributes are the number of users in each node of the tree. The frequency protocol is deleted after the computation of the attributes.
 
 The `post_process` method is used to apply the post-processing step of the hierarchical mechanism.
-The post-processing step is used to improve the accuracy of the mechanism. The post-processing step is applied by default.
+The post-processing step is used to improve the accuracy of the mechanism.
 
 Post-processing applies the Hierarchial Mechanism proposed by Hay et al. in 
 > M. Hay, V. Rastogi, G. Miklau, and D. Suciu. Boosting the
@@ -67,10 +67,12 @@ print(f"True quantile: {true_quantile}")
 ```
 Result
 ```
-Private quantile: 1591
-True quantile: 1598.0
+DP quantile: 401115
+True quantile: 400061
 ```
-
+If the tree has been post-processed, the quantile estimation is more accurate and is computed in the entire cdf. This might be however space inefficient for large dimensions.
+If the tree has not been post-processed, the quantile is estimated using a bary search starting from the root. At each node a frequency (absolute if `on all levels` is `True` or relative if `on all levels` is `False`) is estimated 
+using the frequency servers stored in the data structure. 
 ### Range Queries
 You can estimate the range queries of the data with `Private_Tree.get_range_query(a, b)`, where `a` and `b` are the bounds of the range query.
 Additionally, you can return a normalized range query. 
@@ -86,8 +88,8 @@ print(f"Private range query: {private_range_query}")
 ```
 Result
 ```
-True range query: 24980
-Private range query: 25514.970123615636
+True range query: 105
+Private range query: 144.79785114986325
 ```
 ### Binning
 Given a list of quantiles and an error `alpha`, you can create bins of the form 
@@ -102,7 +104,7 @@ print(bins)
 ```
 Result
 ```
-[(np.int64(664), np.int64(1441)), (np.int64(1591), np.int64(2562)), (np.int64(2669), np.int64(3365))]
+[(147500, 352125), (401115, 606250), (651260, 854155)]
 ```
 
 ### Shuffling Amplification
@@ -118,14 +120,18 @@ https://github.com/apple/ml-shuffling-amplification
 ```python
 # Test amplification by shuffling
 delta = 1e-6
-shuffle_numerical = tree.get_privacy(shuffle=True, delta=delta, numerical=True)
-shuffle_theoretical = tree.get_privacy(shuffle=True, delta=delta, numerical=False)
-print(f"For an initial {tree.eps}-DP mechanism, after shuffling {tree.N} users and considering delta = {delta} we obtain"
-      f"a numerical upper bound of eps = : {shuffle_numerical} and a theoretical upper bound of eps = {shuffle_theoretical}")
+shuffle_numerical, method_numerical = tree.get_privacy(shuffle=True, delta=delta, numerical=True)
+shuffle_theoretical, method_numerical = tree.get_privacy(shuffle=True, delta=delta, numerical=False)
+print(
+    f"For an initial {tree.eps * (tree.depth -1)}-DP mechanism, after shuffling {tree.N} users and considering delta = {delta} we obtain\n"
+    f"a numerical upper bound of eps = : {shuffle_numerical} using {method_numerical} \na theoretical upper bound "
+    f"of eps = {shuffle_theoretical} using {method_numerical}"
+)
+
 ```
 Result
 ```
-For an initial 1-DP mechanism, after shuffling 100000 users and considering delta = 1e-06 
-we obtain a numerical upper bound of eps = : 0.015513881255146383 
-and a theoretical upper bound of eps = 0.07529011566478624
+For an initial 45.0-DP mechanism, after shuffling 100000 users and considering delta = 1e-06 we obtain
+a numerical upper bound of eps = : 3.2028258434821195 using pure composition 
+a theoretical upper bound of eps = 7.436947083278209 using pure composition
 ```

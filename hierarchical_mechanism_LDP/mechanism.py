@@ -121,7 +121,7 @@ class Private_TreeBary(TreeBary):
         # servers are not needed anymore
         del self.servers
 
-    def post_process(self):
+    def post_process(self, delete_attributes: bool = True):
         """
         Post process the tree by using the algorithm provided in the paper.
 
@@ -154,7 +154,7 @@ class Private_TreeBary(TreeBary):
         self.cdf = np.cumsum(self.attributes[-1])
 
         # attributes are not needed anymore
-        del self.attributes
+        if delete_attributes: del self.attributes
 
     def get_privacy(self, **kwargs) -> tuple[float, str]:
         """
@@ -335,23 +335,23 @@ class Private_TreeBary(TreeBary):
         """
         assert 0 <= left <= right <= self.B, "Left and right must be between 0 and B"
 
-        # compute right quantile
-        indices = self.get_bary_decomposition_index(right)
-        result_right = 0
-        for i, j in indices:
-            # attributes are normalized so we are summing frequencies
-            result_right += self.attributes[i][j]
+        estimator = (lambda level, item: get_absolute_frequency(self.servers[level - 1], item)
+                     if self.on_all_levels else
+                     lambda level, item: get_frequency(self.servers[level - 1], self.counts[level - 1], item))
 
-        # compute left quantile
-        indices = self.get_bary_decomposition_index(left)
-        result_left = 0
-        for i, j in indices:
-            # attributes are normalized so we are summing frequencies
-            result_left += self.attributes[i][j]
+        def compute_result(bound: int) -> float:
+            result = 0
+            for i, j in self.get_bary_decomposition_index(bound):
+                result += estimator(i, j)
+            return result
+
+        result_right = compute_result(right)
+        result_left = compute_result(left)
+
         if normalized:
-            return result_right - result_left
+            return (result_right - result_left) / self.N if self.on_all_levels else result_right - result_left
         else:
-            return (result_right - result_left) * self.N
+            return result_right - result_left if self.on_all_levels else (result_right - result_left) * self.N
 
     def compute_cdf(self):
         """
