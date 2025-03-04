@@ -8,7 +8,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='LDP_hierarchical_mechanism',
-    version='0.1.2',
+    version='0.1.3',
     description='Local Differential Privacy for Range Queries',
     long_description=long_description,  # Include README content here
     long_description_content_type='text/markdown',  # Specify Markdown format

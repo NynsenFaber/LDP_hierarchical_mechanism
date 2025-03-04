@@ -16,11 +16,11 @@ def test_Private_TreeBary():
     b = 4
     eps = 1.
     protocol = 'unary_encoding'
-    tree = Private_TreeBary(B, b, eps)
+    tree = Private_TreeBary(B, b, eps, on_all_levels=True)
     data = np.random.randint(0, B, 1000)
     # get private quantile
-    tree.update_tree(data, post_process=False, delete_data=True)
-    tree.post_process()
+    tree.update_tree(data)
+    tree.post_process(delete_attributes=False)
     # checks
     for level in range(0, tree.depth - 1):
         children_sum = sum_chunks(np.array(tree.attributes[level + 1]), tree.b)
@@ -34,8 +34,8 @@ def test_Private_TreeBary():
     tree = Private_TreeBary(B, b, eps)
     data = np.random.randint(0, B, 1000)
     # get private quantile
-    tree.update_tree(data, post_process=False, delete_data=True)
-    tree.post_process()
+    tree.update_tree(data)
+    tree.post_process(delete_attributes=False)
     # checks
     for level in range(0, tree.depth - 1):
         children_sum = sum_chunks(np.array(tree.attributes[level + 1]), tree.b)
