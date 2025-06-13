@@ -8,17 +8,17 @@ import numpy as np
 class TreeBary:
     """
     Class to represent a tree structure for the hierarchical mechanism. It works for a bounded data domain of the
-    form [0, B].
+    form [0, 1, ..., B-1, B].
     """
 
-    def __init__(self, B: int, b: int, set_intervals: bool = True):
+    def __init__(self, B: int, b: int = 2, set_intervals: bool = False):
         """
         Constructor
 
         :param B: bound of the data, of the form [0, B]
-        :param b: branching factor of the tree
+        :param b: branching factor of the tree (default is 2, i.e., binary tree)
         :param set_intervals: whether to set the intervals of the tree or not. If False, the intervals are not set
-            and the data structure is more space efficient.
+            and the data structure is more space efficient (default is False).
         """
         self.b = b
         # e.g. for B=8, b=2, depth=3, while for B=9, b=2, depth=4 as 2^4=16>=9
@@ -40,7 +40,10 @@ class TreeBary:
 
         :return: the index of the subinterval where y belongs
         """
-        assert 0 <= level < self.depth, "The level must be between 0 and the depth of the tree"
+        if level < 0 or level >= self.depth:
+            raise ValueError(
+                f"The level inserted is {level}, it must be between 0 and the depth of the tree, "
+                f"which is 0 to {self.depth - 1}")
         if self.intervals is None:
             return find_interval_index(level, self.b, self.depth, value)
         else:
@@ -65,16 +68,6 @@ class TreeBary:
         :return: the bary decomposition of the value
         """
         return get_bary_decomposition_index(self.b, self.depth, value)
-
-    def get_bary_decomposition(self, value: Union[int, float]) -> list[list[int]]:
-        """
-        Compute the bary decomposition of a value
-
-        :param value: the value to decompose
-
-        :return: the bary decomposition of the value
-        """
-        return get_bary_decomposition(self.intervals, value)
 
     def get_level_indices(self, level: int) -> list[int]:
         """
@@ -267,7 +260,8 @@ def get_bary_representation(value: int, b: int, length: int) -> list[int]:
 
 def get_bary_decomposition_index(b: int,
                                  length: int,
-                                 value: Union[int, float]) -> list[tuple[int, int]]:
+                                 value: Union[int, float]
+                                 ) -> list[tuple[int, int]]:
     """
     It gives the indices of the tree (of the form [(level, index), (level, index), ...]) that represent the bary
     decomposition of the value.
@@ -320,7 +314,8 @@ def get_bary_decomposition_index(b: int,
 
 
 def get_bary_decomposition(bary_partition: list[list[list[int]]],
-                           value: Union[int, float]) -> list[list[int]]:
+                           value: Union[int, float]
+                           ) -> list[list[int]]:
     """
     Transform the bary decomposition indices into the actual intervals
 
@@ -425,7 +420,7 @@ def test_get_bary_decomposition_index():
 def test_tree():
     B = 8
     b = 2
-    tree = TreeBary(B, b)
+    tree = TreeBary(B, b, set_intervals=True)
     assert tree.find_interval_index(15, 1) == 1
     assert tree.find_interval_index(10, 1) == 1
     assert tree.find_interval_index(33, 1) == 1
@@ -436,7 +431,7 @@ def test_tree():
 
     B = 21
     b = 3
-    tree = TreeBary(B, b)
+    tree = TreeBary(B, b, set_intervals=True)
     assert tree.get_bary_decomposition(21) == [[0, 9], [9, 18], [18, 21], [21, 22]]
     assert tree.get_bary_decomposition(29) == [[0, 9], [9, 18], [18, 27]]
     assert tree.get_bary_decomposition(27) == [[0, 9], [9, 18], [18, 27]]
@@ -448,7 +443,7 @@ def test_tree():
     # Space efficient version
     B = 21
     b = 3
-    tree = TreeBary(B, b, set_intervals=False)
+    tree = TreeBary(B, b)
     assert tree.find_interval_index(15, 1) == 1
     assert tree.find_interval_index(10, 1) == 1
     assert tree.find_interval_index(9, 1) == 1
