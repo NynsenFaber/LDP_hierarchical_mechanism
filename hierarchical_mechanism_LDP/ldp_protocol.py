@@ -7,7 +7,9 @@ from pure_ldp.frequency_oracles.unary_encoding import UEClient, UEServer
 
 def get_client_server(protocol: str, eps: float, depth: int, b: int) -> tuple:
     """
-    Return the client and server for a given protocol
+    Return the client and server for a given protocol. It is composed by two lists, one for the clients and one for the servers,
+    containing the protocols for each level of the tree. The root is not included in the protocols as it is not used in the protocols.
+    So there are `depth - 1` clients and servers and the index are from 0 to `depth - 2`.
 
     GitHub: https://github.com/Samuel-Maddock/pure-LDP
 
@@ -20,7 +22,7 @@ def get_client_server(protocol: str, eps: float, depth: int, b: int) -> tuple:
     """
     clients = []
     servers = []
-    # create the clients and servers for each level of the tree, not for the root
+    # create the clients and servers for each level of the tree, not for the root as it is not used in the protocols.
     for level in range(1, depth):
         D = int(b ** level)
         # ------------- Local Hashing
@@ -39,15 +41,15 @@ def get_client_server(protocol: str, eps: float, depth: int, b: int) -> tuple:
             servers.append(server)
             clients.append(HadamardResponseClient(epsilon=eps, d=D, hash_funcs=server.get_hash_funcs()))
 
-        elif protocol == 'hadamard_mech':
-            server = HadamardMechServer(epsilon=eps, d=D, use_optimal_t=True, t=None)
-            servers.append(server)
-            clients.append(HadamardMechClient(epsilon=eps, d=D, use_optimal_t=True, t=None))
-
         # ------------- Unary Encoding
         elif protocol == 'unary_encoding':
             clients.append(UEClient(epsilon=eps, d=D, use_oue=True))
             servers.append(UEServer(epsilon=eps, d=D, use_oue=True))
+
+        # ------------- Hadamard Mechanism
+        elif protocol == 'hadamard_mechanism':
+            clients.append(HadamardMechClient(epsilon=eps, d=D, t=None, use_optimal_t=True))
+            servers.append(HadamardMechServer(epsilon=eps, d=D, t=None, use_optimal_t=True))
 
         else:
             raise ValueError(

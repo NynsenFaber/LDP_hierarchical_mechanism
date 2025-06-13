@@ -429,6 +429,7 @@ def test_tree():
     assert tree.get_bary_decomposition(7) == [[0, 4], [4, 8]]
     assert tree.get_bary_decomposition_index(5) == [(1, 0), (2, 2)]
 
+
     B = 21
     b = 3
     tree = TreeBary(B, b, set_intervals=True)

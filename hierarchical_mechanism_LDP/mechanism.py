@@ -7,26 +7,32 @@ from tqdm import tqdm
 
 class Private_TreeBary(TreeBary):
 
-    def __init__(self, B: int, b: int, eps: float,
+    def __init__(self,
+                 B: int,
+                 b: int,
+                 eps: float,
                  protocol: str = "unary_encoding",
-                 on_all_levels: bool = True):
+                 on_all_levels: bool = True
+                 ):
         """
         Constructor
 
         :param B: bound of the data
         :param b: branching factor of the tree
-        :param eps: privacy parameter
+        :param eps: privacy parameter for each protocol (Not The Final Privacy Budget)
         :param protocol: protocol to use for LDP frequency estimation
-        :param on_all_levels: bool, if True the tree is updated on all levels, otherwise it each user select a random level
-        of the tree to update
+        :param on_all_levels: bool, if True the tree is updated on all levels, otherwise it each user selects
+                              a random level of the tree to update
 
         """
         super().__init__(B, b, set_intervals=False)  # space efficient data structure
         # attributes have the same shape of intervals but initialized with zeros
+
         self.eps = eps  # privacy budget
         self.on_all_levels = on_all_levels
 
-        self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
+        # instantiate clients and servers to update the tree
+        self.clients, self.servers = get_client_server(protocol, self.eps, self.depth, self.b)
 
         self.N = None  # total number of users that updated the tree
         self.cdf = None  # cumulative distribution function
@@ -35,38 +41,34 @@ class Private_TreeBary(TreeBary):
         # when applying updates with on_all_levels=False
         self.counts = None
 
-    def initialize_clients_servers(self, eps: float, protocol: str):
+    def update_tree(self,
+                    data: np.ndarray,
+                    verbose: bool = False,
+                    shuffle_input: bool = False
+                    ) -> None:
         """
-        Initialize clients and servers for the tree.
-
-        :param eps: privacy parameter
-        :param protocol: protocol to use for LDP frequency estimation
-        """
-        self.clients, self.servers = get_client_server(protocol, eps, self.depth, self.b)
-
-    def update_tree(self, data: np.ndarray,
-                    verbose: bool = False):
-        """
-        Update the tree with the data using the LDP protocol. If post_process is True, the tree is post processed using the
-        algorithm provided by Hay et al. (2009).
-
-        LDP protocol functions for the b-ary mechanism. It returns a list of servers with the privatized data for the
-        b-adic decomposition of the domain (in intervals).
+        Update the tree with the data using the LDP protocol functions for the b-ary mechanism.
+        It returns a list of servers with the privatized data for the b-adic decomposition of the domain (in intervals).
 
         Ref: Graham Cormode, Samuel Maddock, and Carsten Maple.
         Frequency Estimation under Local Differential Privacy. PVLDB, 14(11): 2046 - 2058, 2021
 
         :param data: data to update the tree
         :param verbose: bool, if True a progress bar is shown
+        :param shuffle_input: bool, if True the input is shuffled before updating the tree
         """
+        if shuffle_input:
+            # shuffle the data to ensure that the updates are independent
+            np.random.shuffle(data)
+
         # check if server and client are initialized
         if self.clients is None or self.servers is None:
             raise ValueError(
-                "Clients and servers are not initialized, run initialize_clients_servers before updating the tree"
+                "Clients and servers are not initialized, reinstantiate the Private_TreeBary class with a protocol."
             )
 
         if not self.on_all_levels:
-            # initialize the counts
+            # initialize the counts, used later to normalize the data
             self.counts = [0 for _ in range(self.depth - 1)]
 
         # this counter is used to keep track of the number of users that updated the tree at each level
@@ -74,12 +76,15 @@ class Private_TreeBary(TreeBary):
 
         # iterate over the data and privatize it
         for i in iterator:
-            user_value = data[i]
+            user_value = data[i]  # select a user
+            # if self.on_all_levels is True, update the tree on all levels, otherwise select a random level
             levels = range(1, self.depth) if self.on_all_levels else [np.random.randint(1, self.depth)]
             for level in levels:
                 interval_index = self.find_interval_index(user_value, level)
-                client = self.clients[level - 1]
+                client = self.clients[level - 1]  # get protocol (client) for the selected level (0-indexed)
                 priv_data = client.privatise(interval_index)
+                # update the server with the privatized data using the protocol
+                # (server) for the selected level (0-indexed)
                 self.servers[level - 1].aggregate(priv_data)
                 if not self.on_all_levels:
                     self.counts[level - 1] += 1
@@ -91,8 +96,9 @@ class Private_TreeBary(TreeBary):
 
     def compute_attributes(self, verbose: bool = False) -> None:
         """
-        Compute the attributes of the tree. This might be slow for large trees as the levels close to the leaves
-        have servers with large dimension, thus it is slow to get an estimate for each element of the interval.
+        Compute the attributes of the tree (relative frequency). This might be slow for large trees as the levels
+        close to the leaves have servers with large dimension, thus it is slow to get an estimate
+        for each element of the interval.
 
         :param verbose: Show progress bar
 
@@ -115,7 +121,7 @@ class Private_TreeBary(TreeBary):
                 self.attributes[i] = np.array([get_frequency(self.servers[i - 1], self.counts[i - 1], j)
                                                for j in range(len(level_attributes))])
             else:
-                self.attributes[i] = np.array([get_absolute_frequency(self.servers[i - 1], j)
+                self.attributes[i] = np.array([get_absolute_frequency(self.servers[i - 1], j) / self.N
                                                for j in range(len(level_attributes))])
 
         # servers are not needed anymore
@@ -123,7 +129,8 @@ class Private_TreeBary(TreeBary):
 
     def post_process(self, delete_attributes: bool = True):
         """
-        Post process the tree by using the algorithm provided in the paper.
+        Post process the tree by using the algorithm provided in the paper. It returns a attribute for the cumulative
+        distribution function (cdf) of the data.
 
         Hay, Michael, et al. "Boosting the accuracy of differentially-private histograms through consistency." arXiv preprint arXiv:0904.0942 (2009).
         """
@@ -156,7 +163,7 @@ class Private_TreeBary(TreeBary):
         # attributes are not needed anymore
         if delete_attributes: del self.attributes
 
-    def get_privacy(self, **kwargs) -> tuple[float, str]:
+    def privacy_accountant(self, **kwargs) -> tuple[float, str]:
         """
         Return the privacy (epsilon) of the mechanism. If shuffle is True, the privacy is computed using privacy amplification
         by shuffling given a delta parameter and the initial privacy budget used to update the tree.
@@ -178,40 +185,48 @@ class Private_TreeBary(TreeBary):
 
         if not shuffle:
             if self.on_all_levels:
-                return self.eps * (self.depth - 1)
+                # if on_all_levels is True, the privacy budget is the one used to update the tree
+                return self.eps * (self.depth - 1), "no composition"
             else:
-                return self.eps
+                return self.eps, "no composition"
+
         if delta is None:
             raise ValueError("Delta must be provided if shuffle is True")
 
-        if not self.on_all_levels:
-            raise Exception(
-                "the update_tree function was called with on_all_levels=False. "
-                "No privacy amplification by shuffling is possible in this case."
-            )
         l = self.depth - 1
         num_iterations = kwargs.get('num_iterations', 10)
         step = kwargs.get('step', 100)
         upperbound = kwargs.get('upperbound', True)
 
-        if numerical:
-            eps_shuffle = numericalanalysis(self.N, self.eps, delta / (2 * l), num_iterations, step, upperbound)
+        if not self.on_all_levels:
+            raise Exception(
+                "Privacy amplification by shuffling is not analyzed for method random_level, "
+                "use method on_all_levels or batch"
+            )
         else:
-            eps_shuffle = closedformanalysis(self.N, self.eps, delta / (2 * l))
-
-        eps_pure = eps_shuffle * l
-        eps_advanced = eps_shuffle * l * (np.exp(eps_shuffle) - 1) / (np.exp(eps_shuffle) + 1) + \
-                       eps_shuffle * np.sqrt(2 * l * np.log(2 / delta))
-
-        if eps_pure <= eps_advanced:
+            ## Case self.on_all_levels is True (so composition is necessary)
+            # get privacy budget for one level, after shuffling
             if numerical:
-                eps_shuffle = numericalanalysis(self.N, self.eps, delta / l, num_iterations, step, upperbound)
+                eps_shuffle = numericalanalysis(self.N, self.eps, delta / (2 * l),
+                                                num_iterations, step, upperbound)
             else:
-                eps_shuffle = closedformanalysis(self.N, self.eps, delta / l)
+                eps_shuffle = closedformanalysis(self.N, self.eps, delta / (2 * l))
+
+            # apply composition
             eps_pure = eps_shuffle * l
-            return eps_pure, "pure composition"
-        else:
-            return eps_advanced, "advanced composition"
+            eps_advanced = eps_shuffle * l * (np.exp(eps_shuffle) - 1) / (np.exp(eps_shuffle) + 1) + \
+                           eps_shuffle * np.sqrt(2 * l * np.log(2 / delta))
+
+            if eps_pure <= eps_advanced:
+                if numerical:
+                    eps_shuffle = numericalanalysis(self.N, self.eps, delta / l,
+                                                    num_iterations, step, upperbound)
+                else:
+                    eps_shuffle = closedformanalysis(self.N, self.eps, delta / l)
+                eps_pure = eps_shuffle * l
+                return eps_pure, "pure composition"
+            else:
+                return eps_advanced, "advanced composition"
 
     #######################
     ### QUERY FUNCTIONS ###
@@ -336,8 +351,8 @@ class Private_TreeBary(TreeBary):
         assert 0 <= left <= right <= self.B, "Left and right must be between 0 and B"
 
         estimator = (lambda level, item: get_absolute_frequency(self.servers[level - 1], item)
-                     if self.on_all_levels else
-                     lambda level, item: get_frequency(self.servers[level - 1], self.counts[level - 1], item))
+        if self.on_all_levels else
+        lambda level, item: get_frequency(self.servers[level - 1], self.counts[level - 1], item))
 
         def compute_result(bound: int) -> float:
             result = 0
